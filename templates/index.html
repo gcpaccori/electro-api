@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Lectura de Medidores YOLO11</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .loader { border-top-color: #3b82f6; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-6xl mb-8 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-blue-400"><i class="fas fa-eye"></i> Vision AI Scanner</h1>
+            <p class="text-slate-400">Detección de Pantallas y Lectura de Dígitos (YOLO11)</p>
+        </div>
+        <div class="text-xs bg-slate-800 px-3 py-1 rounded-full text-green-400 border border-green-900">
+            ● Sistema Online
+        </div>
+    </div>
+
+    <div class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="glass-panel p-6 rounded-2xl shadow-xl flex flex-col items-center justify-center min-h-[400px]">
+            <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="previewImage(event)">
+            
+            <label for="imageInput" class="cursor-pointer flex flex-col items-center justify-center w-full h-full border-2 border-dashed border-slate-600 rounded-xl hover:border-blue-500 hover:bg-slate-800/50 transition-all p-10 group" id="uploadArea">
+                <div id="previewContainer" class="hidden w-full h-full flex items-center justify-center overflow-hidden rounded-lg mb-4 relative">
+                    <img id="previewImg" class="max-h-64 object-contain shadow-lg" src=""/>
+                </div>
+                
+                <div id="uploadText" class="text-center">
+                    <i class="fas fa-cloud-upload-alt text-5xl text-slate-500 group-hover:text-blue-400 mb-4 transition-colors"></i>
+                    <p class="text-lg font-semibold text-slate-300">Sube tu imagen aquí</p>
+                    <p class="text-sm text-slate-500">JPG, PNG soporta alta resolución</p>
+                </div>
+            </label>
+
+            <button onclick="processImage()" class="mt-6 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-blue-900/50 flex items-center justify-center gap-2">
+                <i class="fas fa-microchip"></i> Procesar Imagen
+            </button>
+        </div>
+
+        <div class="glass-panel p-6 rounded-2xl shadow-xl lg:col-span-2 flex flex-col relative">
+            <h2 class="text-xl font-semibold mb-4 text-blue-200 border-b border-slate-700 pb-2">Resultado del Procesamiento</h2>
+            
+            <div class="flex-grow bg-slate-900/50 rounded-xl flex items-center justify-center overflow-hidden border border-slate-700 relative min-h-[400px]">
+                <div id="loader" class="hidden absolute z-10 flex flex-col items-center">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+                    <p class="text-blue-300 animate-pulse">Analizando redes neuronales...</p>
+                </div>
+
+                <img id="resultImg" class="hidden max-h-[500px] w-auto object-contain shadow-2xl rounded-lg" src="" alt="Resultado Detectado">
+                
+                <div id="resultPlaceholder" class="text-slate-600 flex flex-col items-center">
+                    <i class="fas fa-image text-4xl mb-2 opacity-50"></i>
+                    <p>El resultado aparecerá aquí</p>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <h3 class="text-sm font-semibold text-slate-400 mb-2 uppercase tracking-wider">Datos Extraídos (JSON)</h3>
+                <div class="bg-slate-900 rounded-lg p-4 max-h-40 overflow-y-auto border border-slate-700 font-mono text-xs">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-slate-800">
+                                <th class="pb-2">Clase</th>
+                                <th class="pb-2">Confianza</th>
+                                <th class="pb-2">Coordenadas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTable" class="text-green-400">
+                            </tbody>
+                    </table>
+                    <p id="noDataMsg" class="text-slate-600 text-center py-2">Esperando datos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImg = document.getElementById('previewImg');
+        const uploadText = document.getElementById('uploadText');
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImg.src = e.target.result;
+                    previewContainer.classList.remove('hidden');
+                    uploadText.classList.add('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function processImage() {
+            const file = imageInput.files[0];
+            if (!file) {
+                alert("Por favor selecciona una imagen primero.");
+                return;
+            }
+
+            // UI Loading State
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('resultImg').classList.add('hidden');
+            document.getElementById('resultPlaceholder').classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+
+                if (data.success) {
+                    // Mostrar Imagen Procesada
+                    const resultImg = document.getElementById('resultImg');
+                    resultImg.src = "data:image/jpeg;base64," + data.processed_image;
+                    resultImg.classList.remove('hidden');
+                    
+                    // Rellenar Tabla
+                    const tbody = document.getElementById('dataTable');
+                    tbody.innerHTML = '';
+                    
+                    if (data.detections.length > 0) {
+                        document.getElementById('noDataMsg').classList.add('hidden');
+                        data.detections.forEach(det => {
+                            const row = `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+                                <td class="py-2 font-bold text-blue-300">${det.label}</td>
+                                <td class="py-2">${(det.confidence * 100).toFixed(0)}%</td>
+                                <td class="py-2 opacity-70">[${det.box.map(n=>Math.round(n)).join(', ')}]</td>
+                            </tr>`;
+                            tbody.innerHTML += row;
+                        });
+                    } else {
+                        document.getElementById('noDataMsg').classList.remove('hidden');
+                        document.getElementById('noDataMsg').innerText = "No se detectaron dígitos.";
+                    }
+
+                } else {
+                    alert('Error en detección: ' + data.error);
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert('Error de conexión con el servidor.');
+            } finally {
+                document.getElementById('loader').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
