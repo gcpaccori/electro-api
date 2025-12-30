@@ -44,7 +44,7 @@ Esta metodología asegura que el modelo de dígitos no se confunda con números 
 
 * **Python 3.x**
 * **Flask:** Framework web ligero para la API.
-* **Ultralytics YOLOv8:** Motor de detección de objetos de última generación.
+* **Ultralytics YOLOv11:** Motor de detección de objetos de última generación.
 * **OpenCV & Pillow (PIL):** Para manipulación y procesamiento de imágenes.
 * **Gunicorn:** Servidor HTTP WSGI para producción.
 
