@@ -5,7 +5,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![Framework](https://img.shields.io/badge/flask-3.0-green)](https://flask.palletsprojects.com/)
-[![ML Engine](https://img.shields.io/badge/YOLO-v8-purple)](https://docs.ultralytics.com/)
+[![ML Engine](https://img.shields.io/badge/YOLO-v11-purple)](https://docs.ultralytics.com/)
 
 ---
 
