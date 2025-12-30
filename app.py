@@ -59,8 +59,7 @@ def filter_dots(digits_list):
 
 def get_reading_from_crop(img_crop):
     """
-    Función auxiliar que ejecuta la detección de dígitos sobre una imagen ya recortada/rotada.
-    Devuelve: (string_valor, confianza_promedio, num_digitos, imagen_anotada)
+    Función auxiliar corregida: Ordena por CENTRO X para evitar inversiones (70 vs 07).
     """
     # Ejecutar modelo de dígitos
     results = digit_model(img_crop, conf=CONF_DIG, iou=IOU_DIG, device='cpu', verbose=False)
@@ -75,17 +74,22 @@ def get_reading_from_crop(img_crop):
     names = digit_model.names
 
     for box in boxes:
-        x1 = float(box.xyxy[0][0])
-        cls = int(box.cls[0])
+        # Usamos float para precisión
+        x1, y1, x2, y2 = map(float, box.xyxy[0])
         conf = float(box.conf[0])
+        cls = int(box.cls[0])
         label = names[cls]
-        digits_found.append({"x": x1, "label": label, "conf": conf, "box": box})
+        
+        # CALCULAR CENTRO HORIZONTAL
+        center_x = (x1 + x2) / 2
+        
+        digits_found.append({"x": center_x, "label": label, "conf": conf, "box": box})
         total_conf += conf
 
-    # Ordenar por X
+    # Ordenar usando el CENTRO, no el borde izquierdo
     digits_found.sort(key=lambda k: k['x'])
 
-    # --- FILTRAR PUNTOS (SOLO EL ÚLTIMO) ---
+    # --- FILTRAR PUNTOS ---
     digits_found = filter_dots(digits_found)
 
     # Construir string
@@ -97,7 +101,7 @@ def get_reading_from_crop(img_crop):
         else:
             val_str += lbl
 
-    # Dibujar en la imagen (para debug visual)
+    # Dibujar (Visuals)
     annotated_img = img_crop.copy()
     for d in digits_found:
         box = d['box']
@@ -107,7 +111,7 @@ def get_reading_from_crop(img_crop):
 
     avg_conf = total_conf / len(digits_found) if len(digits_found) > 0 else 0
     return val_str, avg_conf, len(digits_found), annotated_img
-
+    
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
@@ -221,3 +225,4 @@ def detect():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
