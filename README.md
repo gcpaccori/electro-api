@@ -231,4 +231,4 @@ electro-api/
 ---
 
 **Desarrollado para Electro Sur Este S.A.A.**  
-*Gerencia Comercial – Unidad de Lecturas*
+*Gerencia TIC*
