@@ -1,119 +1,113 @@
+# Electro API: Lectura Inteligente de Medidores (YOLO11 Nano)
 
-# Electro API: Detección de Lecturas en Cascada con YOLOv11n
+> API de visión artificial de alto rendimiento para la lectura automática de medidores de energía. Implementa una arquitectura en cascada con corrección de perspectiva, potenciada por **YOLO11 Nano**.
 
-> Una API robusta basada en Flask para la lectura automática de medidores digitales, utilizando un enfoque de visión artificial de dos etapas.
-
-[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![Framework](https://img.shields.io/badge/flask-3.0-green)](https://flask.palletsprojects.com/)
-[![ML Engine](https://img.shields.io/badge/YOLO-v11-purple)](https://docs.ultralytics.com/)
+[![AI Engine](https://img.shields.io/badge/YOLO-11%20Nano-purple)](https://docs.ultralytics.com/)
+[![License](https://img.shields.io/badge/license-MIT-grey)]()
 
 ---
 
-## 🖼️ Demostración
+## 🖼️ Demostración del Pipeline
 
-A continuación se muestra un ejemplo del procesamiento de la API: primero detecta la pantalla (cuadro verde) y luego busca los dígitos únicamente dentro de esa área (cuadros rojos).
+El sistema no simplemente "busca números". Sigue un proceso cognitivo similar al humano:
+1. **Localiza** la pantalla del medidor.
+2. **Corrige** la perspectiva (Warp) para aplanar la imagen.
+3. **Lee** los dígitos secuencialmente sobre la imagen corregida.
 
-![Demo del funcionamiento de Electro API]<img width="910" height="704" alt="image" src="https://github.com/user-attachments/assets/f015f4e5-f72e-423d-9a8f-87345a0efec3" />
-
----
-
-## 💡 Descripción del Proyecto
-
-Este proyecto implementa una API RESTful diseñada para extraer lecturas numéricas de imágenes de medidores eléctricos u otros dispositivos con pantallas digitales.
-
-A diferencia de los enfoques tradicionales que buscan todo a la vez, esta API utiliza una **lógica secuencial (en cascada)** inteligente para mejorar la precisión y reducir falsos positivos:
-
-1.  **Etapa 1 - Detección de Pantalla:** Un modelo YOLOv11n especializado (`display_detection.pt`) analiza la imagen completa para localizar el área de la pantalla LCD/LED.
-2.  **Etapa 2 - Recorte y Reconocimiento de Dígitos:** Si se encuentra una pantalla, la imagen se recorta automáticamente a esa área de interés. Un segundo modelo YOLOv11n (`digit_recognition.pt`) busca los dígitos numéricos solo dentro de ese recorte.
-
-Esta metodología asegura que el modelo de dígitos no se confunda con números o textos irrelevantes fuera de la pantalla del dispositivo.
+![Pipeline de Detección](<img width="910" height="704" alt="image" src="https://github.com/user-attachments/assets/f015f4e5-f72e-423d-9a8f-87345a0efec3" />)
 
 ---
 
-## 🚀 Características Principales
+## 💡 ¿Por qué YOLO11 Nano?
 
-* **Arquitectura de Dos Etapas:** Mayor precisión al enfocar la detección de dígitos solo en áreas relevantes.
-* **Optimizado para CPU:** Configurado explícitamente para funcionar en entornos sin GPU (como el plan gratuito de Render), evitando conflictos de drivers CUDA.
-* **Respuesta Rica:** El endpoint devuelve un JSON con los datos detectados y una versión en Base64 de la imagen procesada con las detecciones dibujadas.
-* **Interfaz Web Básica:** Incluye una plantilla HTML simple en la ruta raíz `/` para pruebas rápidas.
-* **Lista para Producción:** Configurada para usar Gunicorn como servidor WSGI en despliegues.
+Este proyecto ha sido migrado a **YOLO11 Nano**, la versión más reciente y ligera de la arquitectura YOLO.
 
----
-
-## 🛠️ Stack Tecnológico
-
-* **Python 3.x**
-* **Flask:** Framework web ligero para la API.
-* **Ultralytics YOLOv11:** Motor de detección de objetos de última generación.
-* **OpenCV & Pillow (PIL):** Para manipulación y procesamiento de imágenes.
-* **Gunicorn:** Servidor HTTP WSGI para producción.
+* **Velocidad Extrema:** Optimizado para inferencia en tiempo real en CPUs.
+* **Peso Pluma:** Los modelos pesan menos, lo que reduce el tiempo de arranque en servidores como **Render**.
+* **Precisión/Costo:** Ofrece el mejor balance para tareas de detección de bordes y caracteres simples sin requerir GPUs costosas.
 
 ---
 
-## 📦 Instalación y Uso Local
+## ⚙️ Lógica de Procesamiento (The Cascade)
 
-### Prerrequisitos
-* Python instalado.
-* Tener los archivos de modelo `display_detection.pt` y `digit_recognition.pt` en la raíz del proyecto.
+El backend (`app.py`) ejecuta la siguiente lógica estricta para garantizar la calidad de la lectura:
 
-### Pasos
+1.  **Detección de Pantalla (Display Model):**
+    * Escanea la foto completa.
+    * Extrae la ROI (Región de Interés) del display LCD/LED.
+2.  **Pre-procesamiento Geométrico (Warping):**
+    * Recorta el display detectado.
+    * Realiza un `resize` forzado a **400x150px**. Esto normaliza el tamaño de los dígitos independientemente de la distancia de la foto.
+3.  **Reconocimiento de Dígitos (Digit Model):**
+    * Se ejecuta **solo** sobre la imagen recortada y normalizada.
+    * Usa `iou=0.3` para filtrar detecciones fantasma o superpuestas.
+4.  **Algoritmo de Lectura:**
+    * Ordena las coordenadas X de los dígitos detectados.
+    * Reconstruye el valor numérico final (ej: `12345.6`).
 
-1.  **Clonar el repositorio:**
+---
+
+## 🚀 Despliegue en Render (CPU Only)
+
+Este proyecto está configurado nativamente para funcionar en el **Free Tier de Render** (que no tiene GPU).
+
+1.  **Nuevo Web Service:** Conecta tu repo de GitHub.
+2.  **Runtime:** Python 3.
+3.  **Build Command:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+4.  **Start Command:**
+    ```bash
+    gunicorn app:app --timeout 120
+    ```
+    *(El timeout de 120s es vital para permitir la carga de los modelos YOLO11 en memoria la primera vez).*
+
+---
+
+## 📦 Instalación Local
+
+Si deseas correrlo en tu PC (con o sin GPU):
+
+1.  **Clonar:**
     ```bash
     git clone [https://github.com/TU_USUARIO/electro-api.git](https://github.com/TU_USUARIO/electro-api.git)
     cd electro-api
     ```
 
-2.  **Crear y activar entorno virtual (Recomendado):**
-    ```bash
-    # En Windows
-    python -m venv venv
-    .\venv\Scripts\activate
-
-    # En macOS/Linux
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-
-3.  **Instalar dependencias:**
+2.  **Instalar Dependencias:**
     ```bash
     pip install -r requirements.txt
     ```
 
-4.  **Ejecutar el servidor de desarrollo:**
+3.  **Ejecutar:**
     ```bash
     python app.py
     ```
-    La API estará disponible en `http://localhost:5000`.
+    Visita `http://localhost:5000` para ver la interfaz de Electro Sur Este.
 
 ---
 
-## 📡 Documentación de la API
+## 📡 Endpoints de la API
 
-### Endpoint: `/detect`
+### `POST /detect`
+Envía una imagen para procesar.
 
-* **Método:** `POST`
-* **Descripción:** Procesa una imagen cargada y devuelve las detecciones.
-* **Body (form-data):**
-    * `image`: (Archivo, requerido) La imagen del medidor a analizar.
+* **Body (Multipart/Form-Data):**
+    * `image`: Archivo de imagen (jpg, png).
 
-#### Ejemplo de Respuesta Exitosa (JSON):
-
-```json
-{
-  "success": true,
-  "detections": [
+* **Respuesta (JSON):**
+    ```json
     {
-      "box": [ 450, 210, 485, 310 ],
-      "confidence": "0.92",
-      "label": "1"
-    },
-    {
-      "box": [ 490, 212, 530, 308 ],
-      "confidence": "0.89",
-      "label": "2"
+      "success": true,
+      "reading": "1045.2",
+      "debug_original": "...base64_string...",
+      "debug_warp": "...base64_string..."
     }
-    // ... más dígitos
-  ],
-  "processed_image": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAIBAQEBAQIBAQECAgICAgQDAgI..."
-}
+    ```
+
+---
+
+## 📂 Estructura del Proyecto
