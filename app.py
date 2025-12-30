@@ -16,8 +16,9 @@ CONF_DISP = 0.25
 IOU_DISP = 0.5
 CONF_DIG = 0.3
 IOU_DIG = 0.3
-WARP_W = 400
-WARP_H = 150
+# Dimensiones estándar solo para displays horizontales
+STD_W = 400
+STD_H = 150
 
 # --- CARGA DE MODELOS ---
 try:
@@ -35,25 +36,77 @@ def numpy_to_base64(img_array):
     if not success: return ""
     return base64.b64encode(buffer).decode('utf-8')
 
-def get_reading_value(boxes, names):
-    if not boxes: return ""
-    digits = []
+def filter_dots(digits_list):
+    """
+    Recibe la lista de dígitos detectados y ordenados.
+    Si hay múltiples puntos, conserva solo el último (más a la derecha).
+    """
+    # 1. Separar puntos de números
+    dots_indices = [i for i, d in enumerate(digits_list) if d['label'] in ['10', 'dot', 'point']]
+    
+    if len(dots_indices) > 1:
+        # El índice del último punto
+        last_dot_idx = dots_indices[-1]
+        # Crear nueva lista excluyendo los puntos anteriores
+        filtered = []
+        for i, d in enumerate(digits_list):
+            if i in dots_indices and i != last_dot_idx:
+                continue # Saltar este punto (es uno de los sobrantes)
+            filtered.append(d)
+        return filtered
+    
+    return digits_list
+
+def get_reading_from_crop(img_crop):
+    """
+    Función auxiliar que ejecuta la detección de dígitos sobre una imagen ya recortada/rotada.
+    Devuelve: (string_valor, confianza_promedio, num_digitos, imagen_anotada)
+    """
+    # Ejecutar modelo de dígitos
+    results = digit_model(img_crop, conf=CONF_DIG, iou=IOU_DIG, device='cpu', verbose=False)
+    
+    boxes = results[0].boxes
+    if len(boxes) == 0:
+        return "", 0.0, 0, img_crop
+
+    # Extraer datos
+    digits_found = []
+    total_conf = 0.0
+    names = digit_model.names
+
     for box in boxes:
         x1 = float(box.xyxy[0][0])
         cls = int(box.cls[0])
+        conf = float(box.conf[0])
         label = names[cls]
-        digits.append({"x": x1, "label": label})
-    
-    digits.sort(key=lambda k: k['x'])
-    
-    val = ""
-    for d in digits:
+        digits_found.append({"x": x1, "label": label, "conf": conf, "box": box})
+        total_conf += conf
+
+    # Ordenar por X
+    digits_found.sort(key=lambda k: k['x'])
+
+    # --- FILTRAR PUNTOS (SOLO EL ÚLTIMO) ---
+    digits_found = filter_dots(digits_found)
+
+    # Construir string
+    val_str = ""
+    for d in digits_found:
         lbl = str(d['label'])
-        if lbl in ['10', 'dot', 'point']: 
-            val += "."
+        if lbl in ['10', 'dot', 'point']:
+            val_str += "."
         else:
-            val += lbl
-    return val
+            val_str += lbl
+
+    # Dibujar en la imagen (para debug visual)
+    annotated_img = img_crop.copy()
+    for d in digits_found:
+        box = d['box']
+        dx1, dy1, dx2, dy2 = map(int, box.xyxy[0])
+        cv2.rectangle(annotated_img, (dx1, dy1), (dx2, dy2), (0, 0, 255), 2)
+        cv2.putText(annotated_img, str(d['label']), (dx1, dy1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+
+    avg_conf = total_conf / len(digits_found) if len(digits_found) > 0 else 0
+    return val_str, avg_conf, len(digits_found), annotated_img
 
 @app.route('/', methods=['GET'])
 def index():
@@ -67,23 +120,19 @@ def detect():
     if 'image' not in request.files:
         return jsonify({"filename": "error", "display_detected": False, "reading": "Falta imagen"}), 400
 
-    # Flag para saber si devolvemos imágenes (Web) o solo JSON (API masiva)
     include_visuals = request.form.get('include_visuals') == 'true'
 
     try:
         file = request.files['image']
         filename = secure_filename(file.filename)
-        
-        # Leer imagen
         file_bytes = file.read()
         pil_img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
         orig_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
-        # Respuesta Base
         response = {
             "filename": filename,
             "display_detected": False,
-            "reading": "desactivado" # Por defecto
+            "reading": "desactivado"
         }
 
         # 1. Detectar Display
@@ -92,38 +141,75 @@ def detect():
         if len(disp_res[0].boxes) > 0:
             response["display_detected"] = True
             
-            # Procesar Display
+            # Tomar el mejor display
             box = disp_res[0].boxes[0]
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             
-            # (Solo si es Web) Dibujar en original
+            # Dibujar cuadro verde en original (solo si es web)
             if include_visuals:
                 cv2.rectangle(orig_img, (x1, y1), (x2, y2), (0, 255, 0), 3)
 
-            # Recorte y Warp
+            # Recortar Display
             crop = orig_img[max(0,y1):max(0,y2), max(0,x1):max(0,x2)]
             
             if crop.size > 0:
-                warp_img = cv2.resize(crop, (WARP_W, WARP_H))
+                h, w = crop.shape[:2]
+                ratio = w / h
                 
-                # 2. Detectar Dígitos
-                dig_res = digit_model(warp_img, conf=CONF_DIG, iou=IOU_DIG, device='cpu', verbose=False)
+                final_reading = ""
+                final_warp_img = crop
                 
-                # Obtener Valor
-                val = get_reading_value(dig_res[0].boxes, digit_model.names)
-                response["reading"] = val if val else "ilegible"
+                # --- LÓGICA DE GEOMETRÍA ---
 
-                # (Solo si es Web) Generar imágenes Base64
-                if include_visuals:
-                    for dbox in dig_res[0].boxes:
-                        dx1, dy1, dx2, dy2 = map(int, dbox.xyxy[0])
-                        lbl = digit_model.names[int(dbox.cls[0])]
-                        cv2.rectangle(warp_img, (dx1, dy1), (dx2, dy2), (0, 0, 255), 2)
-                        cv2.putText(warp_img, str(lbl), (dx1, dy1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255), 2)
+                # CASO 1: VERTICAL (Alto > Ancho)
+                if ratio < 0.85: 
+                    # Probar rotación -90 (Izquierda)
+                    rot_left = cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    # Forzamos resize horizontal estándar tras rotar
+                    rot_left = cv2.resize(rot_left, (STD_W, STD_H))
+                    read_L, conf_L, count_L, img_L = get_reading_from_crop(rot_left)
+
+                    # Probar rotación +90 (Derecha)
+                    rot_right = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
+                    rot_right = cv2.resize(rot_right, (STD_W, STD_H))
+                    read_R, conf_R, count_R, img_R = get_reading_from_crop(rot_right)
+
+                    # Comparar ganadores (Prioridad: más dígitos > mayor confianza)
+                    score_L = count_L * 10 + conf_L
+                    score_R = count_R * 10 + conf_R
+
+                    if score_L >= score_R:
+                        final_reading = read_L
+                        final_warp_img = img_L # Guardamos la imagen ganadora
+                    else:
+                        final_reading = read_R
+                        final_warp_img = img_R
+
+                # CASO 2: CUADRADO (Ratio cercano a 1)
+                elif 0.85 <= ratio <= 1.3:
+                    # NO estirar desproporcionadamente. Escalar proporcionalmente.
+                    # Fijamos ancho a 320, alto automático
+                    target_w = 350
+                    scale = target_w / w
+                    target_h = int(h * scale)
+                    resized_square = cv2.resize(crop, (target_w, target_h))
                     
-                    response["debug_warp"] = numpy_to_base64(warp_img)
+                    final_reading, _, _, img_sq = get_reading_from_crop(resized_square)
+                    final_warp_img = img_sq
+
+                # CASO 3: HORIZONTAL (Normal)
+                else:
+                    # Estirar a formato estándar (Warp)
+                    warp_std = cv2.resize(crop, (STD_W, STD_H))
+                    final_reading, _, _, img_std = get_reading_from_crop(warp_std)
+                    final_warp_img = img_std
+
+                # Asignar resultados
+                response["reading"] = final_reading if final_reading else "ilegible"
+                
+                if include_visuals:
+                    response["debug_warp"] = numpy_to_base64(final_warp_img)
         
-        # (Solo si es Web) Adjuntar original procesada
         if include_visuals:
             response["debug_original"] = numpy_to_base64(orig_img)
 
