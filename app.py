@@ -15,11 +15,11 @@ DEVICE = torch.device('cpu')
 CONF_DISP = 0.25
 IOU_DISP = 0.5
 
-# AJUSTES PARA DÍGITOS (CRÍTICO PARA EVITAR DOBLES DETECCIONES)
-CONF_DIG = 0.30  # Confianza mínima
-IOU_DIG = 0.20   # Bajado a 0.2 para eliminar cajas superpuestas (ej: 0 y 7 encimados)
+# Ajustes de YOLO (Base)
+CONF_DIG = 0.30  
+IOU_DIG = 0.20   
 
-# Dimensiones estándar solo para displays horizontales
+# Dimensiones estándar
 STD_W = 400
 STD_H = 150
 
@@ -39,77 +39,131 @@ def numpy_to_base64(img_array):
     if not success: return ""
     return base64.b64encode(buffer).decode('utf-8')
 
-def filter_dots(digits_list):
+def solve_overlapping_digits(digits_data, min_dist=20):
     """
-    Recibe la lista de dígitos detectados y ordenados.
-    Si hay múltiples puntos, conserva solo el último (más a la derecha).
+    Recibe una lista de diccionarios de DÍGITOS (sin puntos).
+    Si dos dígitos tienen sus centros horizontales a menos de 'min_dist' píxeles,
+    se elimina el de menor confianza.
+    min_dist=20 es bueno para una imagen de 400px de ancho.
     """
-    dots_indices = [i for i, d in enumerate(digits_list) if d['label'] in ['10', 'dot', 'point']]
+    if not digits_data:
+        return []
+
+    # 1. Ordenar por CONFIANZA (el más seguro primero)
+    # Así nos aseguramos de que si compiten 0 (90%) y 7 (40%), gane el 0.
+    digits_data.sort(key=lambda x: x['conf'], reverse=True)
+
+    final_digits = []
+    
+    for current_digit in digits_data:
+        is_duplicate = False
+        for accepted_digit in final_digits:
+            # Calcular distancia entre centros X
+            dist = abs(current_digit['x'] - accepted_digit['x'])
+            
+            # Si están demasiado pegados, es una colisión
+            if dist < min_dist:
+                is_duplicate = True
+                break # Descartar 'current_digit' (porque tiene menos confianza que 'accepted')
+        
+        if not is_duplicate:
+            final_digits.append(current_digit)
+
+    return final_digits
+
+def filter_dots_logic(sorted_items):
+    """
+    Lógica para borrar puntos duplicados o erróneos, conservando el último.
+    """
+    dots_indices = [i for i, d in enumerate(sorted_items) if d['is_dot']]
     
     if len(dots_indices) > 1:
         last_dot_idx = dots_indices[-1]
         filtered = []
-        for i, d in enumerate(digits_list):
-            # Si es un punto y NO es el último, lo saltamos
+        for i, d in enumerate(sorted_items):
             if i in dots_indices and i != last_dot_idx:
                 continue 
             filtered.append(d)
         return filtered
     
-    return digits_list
+    return sorted_items
 
 def get_reading_from_crop(img_crop):
     """
-    Función auxiliar: Ejecuta detección, filtra overlap y ordena por CENTRO X.
+    Ejecuta detección y aplica LIMPIEZA MANUAL de superposiciones.
     """
-    # Ejecutar modelo de dígitos con IOU estricto (0.2)
     results = digit_model(img_crop, conf=CONF_DIG, iou=IOU_DIG, device='cpu', verbose=False)
-    
     boxes = results[0].boxes
+    
     if len(boxes) == 0:
         return "", 0.0, 0, img_crop
 
-    digits_found = []
-    total_conf = 0.0
+    raw_digits = [] # Solo números (0-9)
+    raw_dots = []   # Solo puntos (dot, 10, point)
     names = digit_model.names
 
+    # 1. Extracción y Separación
     for box in boxes:
         x1, y1, x2, y2 = map(float, box.xyxy[0])
         conf = float(box.conf[0])
         cls = int(box.cls[0])
-        label = names[cls]
+        label = str(names[cls])
         
-        # --- CRÍTICO: USAR CENTRO X PARA ORDENAR ---
         center_x = (x1 + x2) / 2
         
-        digits_found.append({"x": center_x, "label": label, "conf": conf, "box": box})
-        total_conf += conf
+        item = {
+            "x": center_x, 
+            "label": label, 
+            "conf": conf, 
+            "box": box,
+            "is_dot": label in ['10', 'dot', 'point', '.'] # Flag para identificar puntos
+        }
 
-    # Ordenar de izquierda a derecha usando el CENTRO
-    digits_found.sort(key=lambda k: k['x'])
+        if item['is_dot']:
+            raw_dots.append(item)
+        else:
+            raw_digits.append(item)
 
-    # Filtrar puntos sobrantes
-    digits_found = filter_dots(digits_found)
+    # 2. LIMPIEZA DE DÍGITOS (Aquí eliminamos el 7 fantasma superpuesto al 0)
+    # Usamos un radio de 20px (ajustable) para considerar conflicto
+    clean_digits = solve_overlapping_digits(raw_digits, min_dist=20)
 
-    # Construir string
+    # 3. FUSIÓN: Juntamos los dígitos limpios con TODOS los puntos originales
+    # (Así garantizamos no afectar al dot)
+    all_items = clean_digits + raw_dots
+
+    # 4. Ordenar todo de Izquierda a Derecha
+    all_items.sort(key=lambda k: k['x'])
+
+    # 5. Filtrar puntos sobrantes (regla del último punto)
+    final_items = filter_dots_logic(all_items)
+
+    # 6. Construir String y Dibujar
     val_str = ""
-    for d in digits_found:
-        lbl = str(d['label'])
-        if lbl in ['10', 'dot', 'point']:
+    total_conf = 0.0
+    annotated_img = img_crop.copy()
+
+    for d in final_items:
+        lbl = d['label']
+        if d['is_dot']:
             val_str += "."
         else:
             val_str += lbl
+        
+        total_conf += d['conf']
 
-    # Dibujar resultados sobre la imagen (Debugging visual)
-    annotated_img = img_crop.copy()
-    for d in digits_found:
+        # Dibujar (Visual)
         box = d['box']
         dx1, dy1, dx2, dy2 = map(int, box.xyxy[0])
-        cv2.rectangle(annotated_img, (dx1, dy1), (dx2, dy2), (0, 0, 255), 2)
-        cv2.putText(annotated_img, str(d['label']), (dx1, dy1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+        
+        # Color diferente para puntos y números
+        color = (0, 0, 255) if d['is_dot'] else (255, 0, 0) # Rojo para números, Azul(ish) para puntos en BGR
+        
+        cv2.rectangle(annotated_img, (dx1, dy1), (dx2, dy2), color, 2)
+        cv2.putText(annotated_img, lbl, (dx1, dy1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-    avg_conf = total_conf / len(digits_found) if len(digits_found) > 0 else 0
-    return val_str, avg_conf, len(digits_found), annotated_img
+    avg_conf = total_conf / len(final_items) if len(final_items) > 0 else 0
+    return val_str, avg_conf, len(final_items), annotated_img
 
 @app.route('/', methods=['GET'])
 def index():
@@ -117,9 +171,7 @@ def index():
 
 @app.route('/detect', methods=['POST'])
 def detect():
-    # Inicializar variable para manejo de errores seguro
     filename = "unknown"
-
     if not display_model or not digit_model:
         return jsonify({"filename": "error", "display_detected": False, "reading": "Modelos no cargados"}), 500
 
@@ -141,21 +193,18 @@ def detect():
             "reading": "desactivado"
         }
 
-        # 1. Detectar Display
+        # Detección Display
         disp_res = display_model(orig_img, conf=CONF_DISP, iou=IOU_DISP, device='cpu', verbose=False)
         
         if len(disp_res[0].boxes) > 0:
             response["display_detected"] = True
             
-            # Tomar el mejor display
             box = disp_res[0].boxes[0]
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             
-            # Visualización (Solo Web)
             if include_visuals:
                 cv2.rectangle(orig_img, (x1, y1), (x2, y2), (0, 255, 0), 3)
 
-            # Recortar Display
             crop = orig_img[max(0,y1):max(0,y2), max(0,x1):max(0,x2)]
             
             if crop.size > 0:
@@ -165,50 +214,33 @@ def detect():
                 final_reading = ""
                 final_warp_img = crop
                 
-                # --- LÓGICA DE GEOMETRÍA INTELIGENTE ---
-
-                # CASO 1: VERTICAL (Alto > Ancho)
-                if ratio < 0.85: 
-                    # Probar rotación Izquierda (-90)
-                    rot_left = cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                    rot_left = cv2.resize(rot_left, (STD_W, STD_H))
+                # --- GEOMETRÍA INTELIGENTE ---
+                if ratio < 0.85: # Vertical
+                    rot_left = cv2.resize(cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE), (STD_W, STD_H))
                     read_L, conf_L, count_L, img_L = get_reading_from_crop(rot_left)
 
-                    # Probar rotación Derecha (+90)
-                    rot_right = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
-                    rot_right = cv2.resize(rot_right, (STD_W, STD_H))
+                    rot_right = cv2.resize(cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE), (STD_W, STD_H))
                     read_R, conf_R, count_R, img_R = get_reading_from_crop(rot_right)
 
-                    # Comparar ganadores
-                    score_L = count_L * 10 + conf_L
-                    score_R = count_R * 10 + conf_R
-
-                    if score_L >= score_R:
-                        final_reading = read_L
-                        final_warp_img = img_L
+                    # Score ponderado
+                    if (count_L * 10 + conf_L) >= (count_R * 10 + conf_R):
+                        final_reading, final_warp_img = read_L, img_L
                     else:
-                        final_reading = read_R
-                        final_warp_img = img_R
+                        final_reading, final_warp_img = read_R, img_R
 
-                # CASO 2: CUADRADO (Ratio cercano a 1)
-                elif 0.85 <= ratio <= 1.3:
-                    # Escalar proporcionalmente (NO estirar)
+                elif 0.85 <= ratio <= 1.3: # Cuadrado
                     target_w = 350
                     scale = target_w / w
                     target_h = int(h * scale)
                     resized_square = cv2.resize(crop, (target_w, target_h))
-                    
                     final_reading, _, _, img_sq = get_reading_from_crop(resized_square)
                     final_warp_img = img_sq
 
-                # CASO 3: HORIZONTAL (Normal)
-                else:
-                    # Estirar a formato estándar 400x150
+                else: # Horizontal
                     warp_std = cv2.resize(crop, (STD_W, STD_H))
                     final_reading, _, _, img_std = get_reading_from_crop(warp_std)
                     final_warp_img = img_std
 
-                # Asignar resultados
                 response["reading"] = final_reading if final_reading else "ilegible"
                 
                 if include_visuals:
