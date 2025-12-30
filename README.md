@@ -23,8 +23,8 @@ Este proyecto implementa una API RESTful diseñada para extraer lecturas numéri
 
 A diferencia de los enfoques tradicionales que buscan todo a la vez, esta API utiliza una **lógica secuencial (en cascada)** inteligente para mejorar la precisión y reducir falsos positivos:
 
-1.  **Etapa 1 - Detección de Pantalla:** Un modelo YOLOv8 especializado (`display_detection.pt`) analiza la imagen completa para localizar el área de la pantalla LCD/LED.
-2.  **Etapa 2 - Recorte y Reconocimiento de Dígitos:** Si se encuentra una pantalla, la imagen se recorta automáticamente a esa área de interés. Un segundo modelo (`digit_recognition.pt`) busca los dígitos numéricos solo dentro de ese recorte.
+1.  **Etapa 1 - Detección de Pantalla:** Un modelo YOLOv11n especializado (`display_detection.pt`) analiza la imagen completa para localizar el área de la pantalla LCD/LED.
+2.  **Etapa 2 - Recorte y Reconocimiento de Dígitos:** Si se encuentra una pantalla, la imagen se recorta automáticamente a esa área de interés. Un segundo modelo YOLOv11n (`digit_recognition.pt`) busca los dígitos numéricos solo dentro de ese recorte.
 
 Esta metodología asegura que el modelo de dígitos no se confunda con números o textos irrelevantes fuera de la pantalla del dispositivo.
 
