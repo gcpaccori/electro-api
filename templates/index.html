@@ -3,287 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Comercial - Lectura de Medidores</title>
+    <title>Electro Sur Este - Procesamiento Masivo</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --primary-blue: #0054a6; /* Azul Electro Sur Este */
-            --accent-orange: #f7941d; /* Naranja Electro Sur Este */
-            --light-gray: #f4f6f8;
-            --dark-text: #333;
-        }
-
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--light-gray);
-            margin: 0;
-            padding: 0;
-            color: var(--dark-text);
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-
-        /* HEADER CORPORATIVO */
-        header {
-            background-color: var(--primary-blue);
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .brand h1 {
-            font-size: 1.2rem;
-            margin: 0;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
+        :root { --primary: #0054a6; --accent: #f7941d; --bg: #f4f6f8; }
+        body { font-family: 'Roboto', sans-serif; background: var(--bg); margin: 0; color: #333; }
         
-        .brand-subtitle {
-            font-size: 0.8rem;
-            opacity: 0.9;
-            font-weight: 300;
-        }
+        header { background: var(--primary); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        h1 { margin: 0; font-size: 1.2rem; text-transform: uppercase; }
+        
+        .container { max-width: 1200px; margin: 20px auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* Controles */
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; background: #eef2f6; padding: 15px; border-radius: 6px; }
+        .btn { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .status-bar { flex: 1; text-align: right; font-weight: bold; color: var(--primary); }
 
-        /* CONTENEDOR PRINCIPAL */
-        .main-container {
-            max-width: 1000px;
-            margin: 30px auto;
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-            flex: 1;
-        }
-
-        .control-panel {
-            border-bottom: 2px solid var(--light-gray);
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        /* BOTONES Y INPUTS */
-        .btn-upload {
-            background-color: var(--accent-orange);
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 1rem;
-            font-weight: bold;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.3s;
-            text-transform: uppercase;
-        }
-
-        .btn-upload:hover {
-            background-color: #d67d12;
-        }
-
-        input[type="file"] {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            margin-right: 10px;
-        }
-
-        /* ÁREA DE RESULTADOS */
-        .results-section {
-            display: none; /* Se activa con JS */
-        }
-
-        .kwh-display {
-            background: linear-gradient(135deg, var(--primary-blue), #003366);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .kwh-label {
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.8;
-        }
-
-        .kwh-value {
-            font-size: 4rem;
-            font-weight: 700;
-            font-family: 'Courier New', monospace; /* Estilo digital */
-            margin: 10px 0;
-            color: var(--accent-orange);
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        /* GRID DE IMÁGENES (DEBUG) */
-        .debug-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-        }
-
-        @media(min-width: 768px) {
-            .debug-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .image-card {
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 10px;
-            background: #fafafa;
-        }
-
-        .image-card h3 {
-            margin-top: 0;
-            font-size: 1rem;
-            color: var(--primary-blue);
-            border-bottom: 2px solid var(--accent-orange);
-            padding-bottom: 5px;
-            display: inline-block;
-        }
-
-        .image-card img {
-            width: 100%;
-            height: auto;
-            border-radius: 4px;
-            margin-top: 10px;
-        }
-
-        .details-text {
-            font-size: 0.85rem;
-            color: #666;
-            margin-top: 5px;
-        }
-
-        /* FOOTER */
-        footer {
-            text-align: center;
-            padding: 20px;
-            font-size: 0.8rem;
-            color: #888;
-            background-color: #fff;
-            border-top: 1px solid #eee;
-        }
+        /* Tabla */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: var(--primary); color: white; }
+        tr:hover { background-color: #f9f9f9; }
+        
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.85rem; font-weight: bold; }
+        .badge-yes { background: #d4edda; color: #155724; }
+        .badge-no { background: #f8d7da; color: #721c24; }
+        .reading-val { font-family: 'Courier New', monospace; font-weight: bold; font-size: 1.1rem; color: var(--primary); }
+        
+        /* Modal / Visualizador */
+        .visuals-row { display: none; background: #f1f1f1; }
+        .visuals-container { display: flex; gap: 20px; padding: 15px; justify-content: center; }
+        .v-card { text-align: center; background: white; padding: 10px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .v-card img { max-height: 200px; max-width: 100%; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="brand">
-            <div style="background: white; color: var(--primary-blue); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">E</div>
-            <div>
-                <h1>Electro Sur Este</h1>
-                <div class="brand-subtitle">Gerencia Comercial • Unidad de Lecturas</div>
-            </div>
-        </div>
-        <div style="font-size: 0.9rem; opacity: 0.8;">v2.0 (Neural Update)</div>
-    </header>
+<header>
+    <div>
+        <h1>Electro Sur Este</h1>
+        <small>Sistema de Validación Masiva de Lecturas</small>
+    </div>
+    <div>API v2.1</div>
+</header>
 
-    <div class="main-container">
-        <div class="control-panel">
-            <h2>Validación Fotográfica de Lecturas</h2>
-            <p>Seleccione la fotografía del medidor para procesar la lectura (Modelo en Cascada).</p>
-            <br>
-            <input type="file" id="imageInput" accept="image/*">
-            <button class="btn-upload" onclick="uploadImage()">Procesar Lectura</button>
-            <div id="loading" style="display:none; margin-top:15px; color: var(--primary-blue); font-weight: bold;">
-                Procesando IA...
-            </div>
-        </div>
-
-        <div id="results" class="results-section">
-            <div class="kwh-display">
-                <div class="kwh-label">Lectura Detectada</div>
-                <div class="kwh-value" id="finalValue">00000</div>
-                <div class="kwh-label">kWh</div>
-            </div>
-
-            <div class="debug-grid">
-                <div class="image-card">
-                    <h3>1. Detección de Pantalla</h3>
-                    <p class="details-text">Modelo: YOLO Display (conf=0.25)</p>
-                    <img id="imgOriginal" src="" alt="Imagen Original">
-                </div>
-
-                <div class="image-card">
-                    <h3>2. Corrección & Dígitos</h3>
-                    <p class="details-text">Warp 400x150px | IOU Dígitos=0.3</p>
-                    <img id="imgWarp" src="" alt="Recorte Procesado">
-                    <p style="font-size: 0.8rem; color: #444; margin-top:5px;">
-                        <em>*Se aplica corrección de perspectiva antes de leer números.</em>
-                    </p>
-                </div>
-            </div>
-        </div>
+<div class="container">
+    <div class="controls">
+        <input type="file" id="fileInput" multiple accept="image/*">
+        <button class="btn" onclick="startBatchProcessing()" id="btnProcess">Procesar Lote</button>
+        <div class="status-bar" id="statusBar">Esperando imágenes...</div>
     </div>
 
-    <footer>
-        &copy; 2025 Electro Sur Este S.A.A. - Sistema de Gestión de Medidas | Desarrollado por GCCANSAYA
-    </footer>
+    <table id="resultsTable">
+        <thead>
+            <tr>
+                <th>Archivo</th>
+                <th>Estado Display</th>
+                <th>Lectura</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            </tbody>
+    </table>
+</div>
 
-    <script>
-        async function uploadImage() {
-            const input = document.getElementById('imageInput');
-            const results = document.getElementById('results');
-            const loading = document.getElementById('loading');
-            
-            if(input.files.length === 0) {
-                alert("Por favor seleccione una imagen.");
-                return;
-            }
+<script>
+    async function startBatchProcessing() {
+        const input = document.getElementById('fileInput');
+        const btn = document.getElementById('btnProcess');
+        const status = document.getElementById('statusBar');
+        const tbody = document.getElementById('tableBody');
 
-            const formData = new FormData();
-            formData.append('image', input.files[0]);
-
-            // UI Reset
-            results.style.display = 'none';
-            loading.style.display = 'block';
-
-            try {
-                const res = await fetch('/detect', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await res.json();
-                
-                loading.style.display = 'none';
-
-                if(data.success) {
-                    results.style.display = 'block';
-                    document.getElementById('finalValue').innerText = data.reading;
-                    
-                    // Mostrar imágenes base64
-                    document.getElementById('imgOriginal').src = `data:image/jpeg;base64,${data.debug_original}`;
-                    
-                    if(data.debug_warp) {
-                        document.getElementById('imgWarp').src = `data:image/jpeg;base64,${data.debug_warp}`;
-                    } else {
-                        // Si no hay warp (no encontró display)
-                        document.getElementById('imgWarp').src = ""; 
-                    }
-                } else {
-                    alert("Error: " + data.error);
-                }
-            } catch (err) {
-                loading.style.display = 'none';
-                alert("Error de red: " + err);
-            }
+        if (input.files.length === 0) {
+            alert("Selecciona al menos una imagen.");
+            return;
         }
-    </script>
+
+        btn.disabled = true;
+        tbody.innerHTML = ""; // Limpiar tabla anterior
+        let processed = 0;
+        let total = input.files.length;
+
+        // Procesar UNA POR UNA (Cola)
+        for (const file of input.files) {
+            status.innerText = `Procesando ${processed + 1} de ${total}: ${file.name}...`;
+            
+            try {
+                // Crear fila temporal
+                const rowId = `row-${processed}`;
+                const tr = document.createElement('tr');
+                tr.id = rowId;
+                tr.innerHTML = `
+                    <td>${file.name}</td>
+                    <td><span class="badge" style="background:#eee">...</span></td>
+                    <td>...</td>
+                    <td></td>
+                `;
+                tbody.appendChild(tr);
+
+                // Preparar envío
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('include_visuals', 'true'); // ¡IMPORTANTE! La web pide visuales
+
+                const res = await fetch('/detect', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                // Actualizar Fila
+                const displayBadge = data.display_detected 
+                    ? '<span class="badge badge-yes">DETECTADO</span>' 
+                    : '<span class="badge badge-no">NO DETECTADO</span>';
+                
+                const readingStyle = data.display_detected ? 'reading-val' : 'text-muted';
+
+                // Botón para ver detalles (solo si hubo display y devolvió imágenes)
+                let actionBtn = '-';
+                if (data.display_detected && data.debug_warp) {
+                    actionBtn = `<button class="btn" style="padding: 5px 10px; font-size:0.8rem;" onclick="toggleVisuals('${rowId}', '${data.debug_original}', '${data.debug_warp}')">Ver Detalles</button>`;
+                }
+
+                tr.innerHTML = `
+                    <td>${data.filename}</td>
+                    <td>${displayBadge}</td>
+                    <td><span class="${readingStyle}">${data.reading}</span></td>
+                    <td>${actionBtn}</td>
+                `;
+
+                // Fila oculta para las imágenes
+                const trVisual = document.createElement('tr');
+                trVisual.id = `${rowId}-vis`;
+                trVisual.className = 'visuals-row';
+                trVisual.innerHTML = `
+                    <td colspan="4">
+                        <div class="visuals-container" id="${rowId}-container"></div>
+                    </td>
+                `;
+                tbody.appendChild(trVisual);
+
+            } catch (err) {
+                console.error(err);
+            }
+
+            processed++;
+        }
+
+        status.innerText = `Proceso finalizado. ${total} imágenes analizadas.`;
+        btn.disabled = false;
+    }
+
+    function toggleVisuals(rowId, imgOriginal, imgWarp) {
+        const row = document.getElementById(`${rowId}-vis`);
+        const container = document.getElementById(`${rowId}-container`);
+        
+        if (row.style.display === 'table-row') {
+            row.style.display = 'none';
+        } else {
+            // Renderizar imágenes solo al abrir
+            container.innerHTML = `
+                <div class="v-card">
+                    <h4>Detección Global</h4>
+                    <img src="data:image/jpeg;base64,${imgOriginal}">
+                </div>
+                <div class="v-card">
+                    <h4>Lectura (Warp)</h4>
+                    <img src="data:image/jpeg;base64,${imgWarp}">
+                </div>
+            `;
+            row.style.display = 'table-row';
+        }
+    }
+</script>
+
 </body>
 </html>
