@@ -1,3 +1,4 @@
+<img width="910" height="704" alt="image" src="https://github.com/user-attachments/assets/f015f4e5-f72e-423d-9a8f-87345a0efec3" />
 # Electro API: Detección de Lecturas en Cascada con YOLOv8
 
 > Una API robusta basada en Flask para la lectura automática de medidores digitales, utilizando un enfoque de visión artificial de dos etapas.
