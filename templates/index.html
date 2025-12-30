@@ -3,168 +3,287 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Lectura de Medidores YOLO11 Electro Sur Este</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>Sistema Comercial - Lectura de Medidores</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #0f172a; color: #e2e8f0; }
-        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .loader { border-top-color: #3b82f6; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
-        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4">
+        :root {
+            --primary-blue: #0054a6; /* Azul Electro Sur Este */
+            --accent-orange: #f7941d; /* Naranja Electro Sur Este */
+            --light-gray: #f4f6f8;
+            --dark-text: #333;
+        }
 
-    <div class="w-full max-w-6xl mb-8 flex justify-between items-center">
-        <div>
-            <h1 class="text-3xl font-bold text-blue-400"><i class="fas fa-eye"></i> Vision AI Scanner Electro Sur Este</h1>
-            <p class="text-slate-400">Detección de Pantallas y Lectura de Dígitos (YOLO11), uso de 2 modelos entrenados, primero se aplica la deteccion del display y luego de los numeros</p>
-        </div>
-        <div class="text-xs bg-slate-800 px-3 py-1 rounded-full text-green-400 border border-green-900">
-            ● Sistema Online
-        </div>
-    </div>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            padding: 0;
+            color: var(--dark-text);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
 
+        /* HEADER CORPORATIVO */
+        header {
+            background-color: var(--primary-blue);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
 
-    <div class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .brand h1 {
+            font-size: 1.2rem;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
         
-        <div class="glass-panel p-6 rounded-2xl shadow-xl flex flex-col items-center justify-center min-h-[400px]">
-            <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="previewImage(event)">
-            
-            <label for="imageInput" class="cursor-pointer flex flex-col items-center justify-center w-full h-full border-2 border-dashed border-slate-600 rounded-xl hover:border-blue-500 hover:bg-slate-800/50 transition-all p-10 group" id="uploadArea">
-                <div id="previewContainer" class="hidden w-full h-full flex items-center justify-center overflow-hidden rounded-lg mb-4 relative">
-                    <img id="previewImg" class="max-h-64 object-contain shadow-lg" src=""/>
-                </div>
-                
-                <div id="uploadText" class="text-center">
-                    <i class="fas fa-cloud-upload-alt text-5xl text-slate-500 group-hover:text-blue-400 mb-4 transition-colors"></i>
-                    <p class="text-lg font-semibold text-slate-300">Sube tu imagen aquí</p>
-                    <p class="text-sm text-slate-500">JPG, PNG soporta alta resolución</p>
-                </div>
-            </label>
+        .brand-subtitle {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
 
-            <button onclick="processImage()" class="mt-6 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-blue-900/50 flex items-center justify-center gap-2">
-                <i class="fas fa-microchip"></i> Procesar Imagen
-            </button>
-        </div>
+        /* CONTENEDOR PRINCIPAL */
+        .main-container {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            flex: 1;
+        }
 
-        <div class="glass-panel p-6 rounded-2xl shadow-xl lg:col-span-2 flex flex-col relative">
-            <h2 class="text-xl font-semibold mb-4 text-blue-200 border-b border-slate-700 pb-2">Resultado del Procesamiento</h2>
-            
-            <div class="flex-grow bg-slate-900/50 rounded-xl flex items-center justify-center overflow-hidden border border-slate-700 relative min-h-[400px]">
-                <div id="loader" class="hidden absolute z-10 flex flex-col items-center">
-                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
-                    <p class="text-blue-300 animate-pulse">Analizando redes neuronales...</p>
-                </div>
+        .control-panel {
+            border-bottom: 2px solid var(--light-gray);
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
 
-                <img id="resultImg" class="hidden max-h-[500px] w-auto object-contain shadow-2xl rounded-lg" src="" alt="Resultado Detectado">
-                
-                <div id="resultPlaceholder" class="text-slate-600 flex flex-col items-center">
-                    <i class="fas fa-image text-4xl mb-2 opacity-50"></i>
-                    <p>El resultado aparecerá aquí</p>
-                </div>
-            </div>
+        /* BOTONES Y INPUTS */
+        .btn-upload {
+            background-color: var(--accent-orange);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            text-transform: uppercase;
+        }
 
-            <div class="mt-6">
-                <h3 class="text-sm font-semibold text-slate-400 mb-2 uppercase tracking-wider">Datos Extraídos (JSON)</h3>
-                <div class="bg-slate-900 rounded-lg p-4 max-h-40 overflow-y-auto border border-slate-700 font-mono text-xs">
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="text-slate-500 border-b border-slate-800">
-                                <th class="pb-2">Clase</th>
-                                <th class="pb-2">Confianza</th>
-                                <th class="pb-2">Coordenadas</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dataTable" class="text-green-400">
-                            </tbody>
-                    </table>
-                    <p id="noDataMsg" class="text-slate-600 text-center py-2">Esperando datos...</p>
-                </div>
-            </div>
-        </div>
-    </div>
+        .btn-upload:hover {
+            background-color: #d67d12;
+        }
 
-    <script>
-        const imageInput = document.getElementById('imageInput');
-        const uploadArea = document.getElementById('uploadArea');
-        const previewContainer = document.getElementById('previewContainer');
-        const previewImg = document.getElementById('previewImg');
-        const uploadText = document.getElementById('uploadText');
+        input[type="file"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
 
-        function previewImage(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    previewImg.src = e.target.result;
-                    previewContainer.classList.remove('hidden');
-                    uploadText.classList.add('hidden');
-                }
-                reader.readAsDataURL(file);
+        /* ÁREA DE RESULTADOS */
+        .results-section {
+            display: none; /* Se activa con JS */
+        }
+
+        .kwh-display {
+            background: linear-gradient(135deg, var(--primary-blue), #003366);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .kwh-label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        .kwh-value {
+            font-size: 4rem;
+            font-weight: 700;
+            font-family: 'Courier New', monospace; /* Estilo digital */
+            margin: 10px 0;
+            color: var(--accent-orange);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* GRID DE IMÁGENES (DEBUG) */
+        .debug-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media(min-width: 768px) {
+            .debug-grid {
+                grid-template-columns: 1fr 1fr;
             }
         }
 
-        async function processImage() {
-            const file = imageInput.files[0];
-            if (!file) {
-                alert("Por favor selecciona una imagen primero.");
+        .image-card {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            background: #fafafa;
+        }
+
+        .image-card h3 {
+            margin-top: 0;
+            font-size: 1rem;
+            color: var(--primary-blue);
+            border-bottom: 2px solid var(--accent-orange);
+            padding-bottom: 5px;
+            display: inline-block;
+        }
+
+        .image-card img {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .details-text {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* FOOTER */
+        footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.8rem;
+            color: #888;
+            background-color: #fff;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <div style="background: white; color: var(--primary-blue); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">E</div>
+            <div>
+                <h1>Electro Sur Este</h1>
+                <div class="brand-subtitle">Gerencia Comercial • Unidad de Lecturas</div>
+            </div>
+        </div>
+        <div style="font-size: 0.9rem; opacity: 0.8;">v2.0 (Neural Update)</div>
+    </header>
+
+    <div class="main-container">
+        <div class="control-panel">
+            <h2>Validación Fotográfica de Lecturas</h2>
+            <p>Seleccione la fotografía del medidor para procesar la lectura (Modelo en Cascada).</p>
+            <br>
+            <input type="file" id="imageInput" accept="image/*">
+            <button class="btn-upload" onclick="uploadImage()">Procesar Lectura</button>
+            <div id="loading" style="display:none; margin-top:15px; color: var(--primary-blue); font-weight: bold;">
+                Procesando IA...
+            </div>
+        </div>
+
+        <div id="results" class="results-section">
+            <div class="kwh-display">
+                <div class="kwh-label">Lectura Detectada</div>
+                <div class="kwh-value" id="finalValue">00000</div>
+                <div class="kwh-label">kWh</div>
+            </div>
+
+            <div class="debug-grid">
+                <div class="image-card">
+                    <h3>1. Detección de Pantalla</h3>
+                    <p class="details-text">Modelo: YOLO Display (conf=0.25)</p>
+                    <img id="imgOriginal" src="" alt="Imagen Original">
+                </div>
+
+                <div class="image-card">
+                    <h3>2. Corrección & Dígitos</h3>
+                    <p class="details-text">Warp 400x150px | IOU Dígitos=0.3</p>
+                    <img id="imgWarp" src="" alt="Recorte Procesado">
+                    <p style="font-size: 0.8rem; color: #444; margin-top:5px;">
+                        <em>*Se aplica corrección de perspectiva antes de leer números.</em>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        &copy; 2025 Electro Sur Este S.A.A. - Sistema de Gestión de Medidas | Desarrollado por GCCANSAYA
+    </footer>
+
+    <script>
+        async function uploadImage() {
+            const input = document.getElementById('imageInput');
+            const results = document.getElementById('results');
+            const loading = document.getElementById('loading');
+            
+            if(input.files.length === 0) {
+                alert("Por favor seleccione una imagen.");
                 return;
             }
 
-            // UI Loading State
-            document.getElementById('loader').classList.remove('hidden');
-            document.getElementById('resultImg').classList.add('hidden');
-            document.getElementById('resultPlaceholder').classList.add('hidden');
-
             const formData = new FormData();
-            formData.append('image', file);
+            formData.append('image', input.files[0]);
+
+            // UI Reset
+            results.style.display = 'none';
+            loading.style.display = 'block';
 
             try {
-                const response = await fetch('/detect', {
+                const res = await fetch('/detect', {
                     method: 'POST',
                     body: formData
                 });
+                const data = await res.json();
                 
-                const data = await response.json();
+                loading.style.display = 'none';
 
-                if (data.success) {
-                    // Mostrar Imagen Procesada
-                    const resultImg = document.getElementById('resultImg');
-                    resultImg.src = "data:image/jpeg;base64," + data.processed_image;
-                    resultImg.classList.remove('hidden');
+                if(data.success) {
+                    results.style.display = 'block';
+                    document.getElementById('finalValue').innerText = data.reading;
                     
-                    // Rellenar Tabla
-                    const tbody = document.getElementById('dataTable');
-                    tbody.innerHTML = '';
+                    // Mostrar imágenes base64
+                    document.getElementById('imgOriginal').src = `data:image/jpeg;base64,${data.debug_original}`;
                     
-                    if (data.detections.length > 0) {
-                        document.getElementById('noDataMsg').classList.add('hidden');
-                        data.detections.forEach(det => {
-                            const row = `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
-                                <td class="py-2 font-bold text-blue-300">${det.label}</td>
-                                <td class="py-2">${(det.confidence * 100).toFixed(0)}%</td>
-                                <td class="py-2 opacity-70">[${det.box.map(n=>Math.round(n)).join(', ')}]</td>
-                            </tr>`;
-                            tbody.innerHTML += row;
-                        });
+                    if(data.debug_warp) {
+                        document.getElementById('imgWarp').src = `data:image/jpeg;base64,${data.debug_warp}`;
                     } else {
-                        document.getElementById('noDataMsg').classList.remove('hidden');
-                        document.getElementById('noDataMsg').innerText = "No se detectaron dígitos.";
+                        // Si no hay warp (no encontró display)
+                        document.getElementById('imgWarp').src = ""; 
                     }
-
                 } else {
-                    alert('Error en detección: ' + data.error);
+                    alert("Error: " + data.error);
                 }
-
-            } catch (error) {
-                console.error(error);
-                alert('Error de conexión con el servidor.');
-            } finally {
-                document.getElementById('loader').classList.add('hidden');
+            } catch (err) {
+                loading.style.display = 'none';
+                alert("Error de red: " + err);
             }
         }
     </script>
 </body>
-
 </html>
