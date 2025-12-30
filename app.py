@@ -14,8 +14,11 @@ app = Flask(__name__, template_folder='templates')
 DEVICE = torch.device('cpu') 
 CONF_DISP = 0.25
 IOU_DISP = 0.5
-CONF_DIG = 0.3
-IOU_DIG = 0.3
+
+# AJUSTES PARA DÍGITOS (CRÍTICO PARA EVITAR DOBLES DETECCIONES)
+CONF_DIG = 0.30  # Confianza mínima
+IOU_DIG = 0.20   # Bajado a 0.2 para eliminar cajas superpuestas (ej: 0 y 7 encimados)
+
 # Dimensiones estándar solo para displays horizontales
 STD_W = 400
 STD_H = 150
@@ -41,17 +44,15 @@ def filter_dots(digits_list):
     Recibe la lista de dígitos detectados y ordenados.
     Si hay múltiples puntos, conserva solo el último (más a la derecha).
     """
-    # 1. Separar puntos de números
     dots_indices = [i for i, d in enumerate(digits_list) if d['label'] in ['10', 'dot', 'point']]
     
     if len(dots_indices) > 1:
-        # El índice del último punto
         last_dot_idx = dots_indices[-1]
-        # Crear nueva lista excluyendo los puntos anteriores
         filtered = []
         for i, d in enumerate(digits_list):
+            # Si es un punto y NO es el último, lo saltamos
             if i in dots_indices and i != last_dot_idx:
-                continue # Saltar este punto (es uno de los sobrantes)
+                continue 
             filtered.append(d)
         return filtered
     
@@ -59,37 +60,35 @@ def filter_dots(digits_list):
 
 def get_reading_from_crop(img_crop):
     """
-    Función auxiliar corregida: Ordena por CENTRO X para evitar inversiones (70 vs 07).
+    Función auxiliar: Ejecuta detección, filtra overlap y ordena por CENTRO X.
     """
-    # Ejecutar modelo de dígitos
+    # Ejecutar modelo de dígitos con IOU estricto (0.2)
     results = digit_model(img_crop, conf=CONF_DIG, iou=IOU_DIG, device='cpu', verbose=False)
     
     boxes = results[0].boxes
     if len(boxes) == 0:
         return "", 0.0, 0, img_crop
 
-    # Extraer datos
     digits_found = []
     total_conf = 0.0
     names = digit_model.names
 
     for box in boxes:
-        # Usamos float para precisión
         x1, y1, x2, y2 = map(float, box.xyxy[0])
         conf = float(box.conf[0])
         cls = int(box.cls[0])
         label = names[cls]
         
-        # CALCULAR CENTRO HORIZONTAL
+        # --- CRÍTICO: USAR CENTRO X PARA ORDENAR ---
         center_x = (x1 + x2) / 2
         
         digits_found.append({"x": center_x, "label": label, "conf": conf, "box": box})
         total_conf += conf
 
-    # Ordenar usando el CENTRO, no el borde izquierdo
+    # Ordenar de izquierda a derecha usando el CENTRO
     digits_found.sort(key=lambda k: k['x'])
 
-    # --- FILTRAR PUNTOS ---
+    # Filtrar puntos sobrantes
     digits_found = filter_dots(digits_found)
 
     # Construir string
@@ -101,7 +100,7 @@ def get_reading_from_crop(img_crop):
         else:
             val_str += lbl
 
-    # Dibujar (Visuals)
+    # Dibujar resultados sobre la imagen (Debugging visual)
     annotated_img = img_crop.copy()
     for d in digits_found:
         box = d['box']
@@ -111,13 +110,16 @@ def get_reading_from_crop(img_crop):
 
     avg_conf = total_conf / len(digits_found) if len(digits_found) > 0 else 0
     return val_str, avg_conf, len(digits_found), annotated_img
-    
+
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
 
 @app.route('/detect', methods=['POST'])
 def detect():
+    # Inicializar variable para manejo de errores seguro
+    filename = "unknown"
+
     if not display_model or not digit_model:
         return jsonify({"filename": "error", "display_detected": False, "reading": "Modelos no cargados"}), 500
 
@@ -149,7 +151,7 @@ def detect():
             box = disp_res[0].boxes[0]
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             
-            # Dibujar cuadro verde en original (solo si es web)
+            # Visualización (Solo Web)
             if include_visuals:
                 cv2.rectangle(orig_img, (x1, y1), (x2, y2), (0, 255, 0), 3)
 
@@ -163,36 +165,34 @@ def detect():
                 final_reading = ""
                 final_warp_img = crop
                 
-                # --- LÓGICA DE GEOMETRÍA ---
+                # --- LÓGICA DE GEOMETRÍA INTELIGENTE ---
 
                 # CASO 1: VERTICAL (Alto > Ancho)
                 if ratio < 0.85: 
-                    # Probar rotación -90 (Izquierda)
+                    # Probar rotación Izquierda (-90)
                     rot_left = cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                    # Forzamos resize horizontal estándar tras rotar
                     rot_left = cv2.resize(rot_left, (STD_W, STD_H))
                     read_L, conf_L, count_L, img_L = get_reading_from_crop(rot_left)
 
-                    # Probar rotación +90 (Derecha)
+                    # Probar rotación Derecha (+90)
                     rot_right = cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
                     rot_right = cv2.resize(rot_right, (STD_W, STD_H))
                     read_R, conf_R, count_R, img_R = get_reading_from_crop(rot_right)
 
-                    # Comparar ganadores (Prioridad: más dígitos > mayor confianza)
+                    # Comparar ganadores
                     score_L = count_L * 10 + conf_L
                     score_R = count_R * 10 + conf_R
 
                     if score_L >= score_R:
                         final_reading = read_L
-                        final_warp_img = img_L # Guardamos la imagen ganadora
+                        final_warp_img = img_L
                     else:
                         final_reading = read_R
                         final_warp_img = img_R
 
                 # CASO 2: CUADRADO (Ratio cercano a 1)
                 elif 0.85 <= ratio <= 1.3:
-                    # NO estirar desproporcionadamente. Escalar proporcionalmente.
-                    # Fijamos ancho a 320, alto automático
+                    # Escalar proporcionalmente (NO estirar)
                     target_w = 350
                     scale = target_w / w
                     target_h = int(h * scale)
@@ -203,7 +203,7 @@ def detect():
 
                 # CASO 3: HORIZONTAL (Normal)
                 else:
-                    # Estirar a formato estándar (Warp)
+                    # Estirar a formato estándar 400x150
                     warp_std = cv2.resize(crop, (STD_W, STD_H))
                     final_reading, _, _, img_std = get_reading_from_crop(warp_std)
                     final_warp_img = img_std
@@ -220,9 +220,8 @@ def detect():
         return jsonify(response)
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error procesando {filename}: {e}")
         return jsonify({"filename": filename, "display_detected": False, "reading": "error_servidor"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
