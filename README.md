@@ -8,7 +8,7 @@
 
 > **Electro API** es una solución de visión artificial de alto rendimiento diseñada para procesar masivamente (>700,000 imágenes/mes) fotografías de medidores de energía eléctrica. Optimizada para CPU y entornos productivos reales.
 <img width="1905" height="908" alt="image" src="https://github.com/user-attachments/assets/9c89a92d-073d-4467-b2fe-3a4c188737b9" />
-
+https://electro-api-gcpaccori.leapcell.app/
 ---
 
 ## 📋 Tabla de Contenidos
