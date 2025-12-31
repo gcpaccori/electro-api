@@ -1,4 +1,4 @@
-# Electro API: Sistema Industrial de Lectura de Medidores (v2.5)
+# Electro API: Sistema de Lectura de Medidores (v2.5)
 
 ![Electro Sur Este](https://img.shields.io/badge/Cliente-Electro%20Sur%20Este-0054a6)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
